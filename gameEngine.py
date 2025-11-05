@@ -37,7 +37,6 @@ SHADOW_COLOR = (0, 0, 0, 40)  # Slightly darker shadow for light background
 # ---------------- Piece & Board Utilities ----------------
 def opponent(p):
     return 'circle' if p == 'square' else 'square'
-
 class Piece:
     def __init__(self, owner:str, side:str="stone", orientation:Optional[str]=None):
         self.owner = owner
@@ -135,6 +134,10 @@ def count_reachable_in_one(board:List[List[Optional[Piece]]],
                         if is_own_score_cell(ptx, pty, player, rows, cols, score_cols):
                             m += 1
                             break
+            if p and p.owner == player and p.side == "river":
+                # if the river piece is in the scoring area already then can be flipped to get a stone in the scoring area
+                if is_own_score_cell(x, y, player, rows, cols, score_cols):
+                    m += 1
     return m
 
 def compute_final_scores(board:List[List[Optional[Piece]]],
@@ -272,7 +275,7 @@ def compute_valid_targets(board:List[List[Optional[Piece]]],
                 pushed_player = target.owner
                 flow = get_river_flow_destinations(board, tx, ty, sx, sy, pushed_player, rows, cols, score_cols, river_push=True)
                 for d in flow:
-                    if not is_opponent_score_cell(d[0],d[1],player,rows,cols,score_cols):
+                    if not is_opponent_score_cell(d[0],d[1],pushed_player,rows,cols,score_cols):
                         pushes.append(((tx,ty),(d[0],d[1])))
     return {'moves': moves, 'pushes': pushes}
 
@@ -348,8 +351,8 @@ def validate_and_apply_move(board:List[List[Optional[Piece]]],
             mover.orientation = None
 
         return True, "push applied"
-
-
+    
+        
 
         # if (tx,ty),(px,py) not in valid_pairs and not any(of==(tx,ty) and pf==(px,py) for of,pf in valid_pairs):
         #     return False, "push pair invalid"
@@ -466,7 +469,7 @@ def check_win(board:List[List[Optional[Piece]]], rows:int, cols:int, score_cols:
     ccount=0; scount=0
     for x in score_cols:
         if in_bounds(x, top, rows, cols):
-            p = board[top][x];
+            p = board[top][x]; 
             if p and p.owner=="circle" and p.side=="stone": ccount+=1
         if in_bounds(x, bot, rows, cols):
             q = board[bot][x]
@@ -481,27 +484,27 @@ def board_to_ascii(board:List[List[Optional[Piece]]], rows:int, cols:int, score_
     result = "\n" + "="*50 + "\n"
     result += "🎮 RIVER AND STONES GAME 🎮\n"
     result += "="*50 + "\n"
-
+    
     # Print column numbers
     col_header = "   "
     for x in range(cols):
         col_header += f"{x:2d} "
     result += col_header + "\n"
-
+    
     rows_out = []
     top = top_score_row()
     bot = bottom_score_row(rows)
-
+    
     for y in range(rows):
         row_str = f"{y:2d} "
-
+        
         for x in range(cols):
             p = board[y][x]
-
+            
             # Determine if this is a scoring cell
             is_circle_score = (y == top) and (x in score_cols)
             is_square_score = (y == bot) and (x in score_cols)
-
+            
             if not p:
                 if is_circle_score:
                     cell = "🔴"  # Circle scoring area
@@ -526,19 +529,19 @@ def board_to_ascii(board:List[List[Optional[Piece]]], rows:int, cols:int, score_
                             cell = "🔵↔"  # Blue horizontal two-way arrow for square
                         else:
                             cell = "🔵↕"  # Blue vertical two-way arrow for square
-
+            
             row_str += f"{cell} "
-
+        
         # Add row indicator for scoring rows
         if y == top:
             row_str += " ← Circle scores here"
         elif y == bot:
             row_str += " ← Square scores here"
-
+            
         rows_out.append(row_str)
-
+    
     result += "\n".join(rows_out)
-
+    
     # Add legend
     legend = "\n\nLEGEND:\n"
     legend += "🔴 Circle stone  ⭕ Circle in score\n"
@@ -546,7 +549,7 @@ def board_to_ascii(board:List[List[Optional[Piece]]], rows:int, cols:int, score_
     legend += "🔴↔ Circle horizontal rivers  🔴↕ Circle vertical rivers\n"
     legend += "🔵↔ Square horizontal rivers  🔵↕ Square vertical rivers\n"
     legend += "🔴🔵 Empty scoring areas\n"
-
+    
     return result + legend
 
 # ---------------- GUI rendering & loop ----------------
@@ -557,17 +560,17 @@ if pygame:
 
 def draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg, timers, current):
     screen.fill(BG)
-
+    
     # Draw background with gradient effect
     board_rect = pygame.Rect(MARGIN-30, MARGIN-30, cols*CELL+60, rows*CELL+60)
     pygame.draw.rect(screen, BOARD_COLOR, board_rect, border_radius=15)
-
+    
     # Add subtle border
     pygame.draw.rect(screen, GRID_COLOR, board_rect, 3, border_radius=15)
-
+    
     # Draw scoring areas with subtle design
     top = top_score_row(); bot = bottom_score_row(rows)
-
+    
     # Circle's scoring area (top) - subtle design
     for x in score_cols:
         r = pygame.Rect(MARGIN + x*CELL - CELL//2, MARGIN + top*CELL - CELL//2, CELL, CELL)
@@ -577,7 +580,7 @@ def draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg,
         screen.blit(s, r.topleft)
         # Subtle border
         pygame.draw.rect(screen, CIRCLE_COLOR, r, 2, border_radius=8)
-
+    
     # Square's scoring area (bottom) - subtle design
     for x in score_cols:
         r = pygame.Rect(MARGIN + x*CELL - CELL//2, MARGIN + bot*CELL - CELL//2, CELL, CELL)
@@ -616,18 +619,18 @@ def draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg,
             if not p: continue
             cx = MARGIN + x*CELL; cy = MARGIN + y*CELL
             color = CIRCLE_COLOR if p.owner=="circle" else SQUARE_COLOR
-
+            
             # Subtle shadow effect
             shadow_surf = pygame.Surface((CELL, CELL), pygame.SRCALPHA)
             pygame.draw.circle(shadow_surf, SHADOW_COLOR, (CELL//2 + 1, CELL//2 + 1), CELL//2 - 4)
             screen.blit(shadow_surf, (cx - CELL//2, cy - CELL//2))
-
+            
             # Outer colored ring (thinner)
             pygame.draw.circle(screen, color, (cx, cy), CELL//2 - 4, 3)
-
+            
             # Larger white inner circle for all pieces
             pygame.draw.circle(screen, STONE_FILL, (cx, cy), CELL//2 - 8)
-
+            
             if p.side == "stone":
                 # Stone appearance with subtle colored border around larger white center
                 pygame.draw.circle(screen, color, (cx, cy), CELL//2 - 8, 2)
@@ -636,14 +639,14 @@ def draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg,
             else:
                 # River appearance - thin rivers inside the larger white circle
                 river_color = RIVER_FILL_CIRCLE if p.owner == "circle" else RIVER_FILL_SQUARE
-
+                
                 if p.orientation == "horizontal":
                     # Thin horizontal river inside larger white circle
                     river_width = 3  # Thinner river
                     river_length = CELL - 20  # Fits inside larger white circle
                     river_rect = pygame.Rect(cx - river_length//2, cy - river_width//2, river_length, river_width)
                     pygame.draw.rect(screen, river_color, river_rect, border_radius=1)
-
+                    
                     # Subtle flow direction indicators
                     arrow_size = 2
                     for i in range(2):
@@ -660,7 +663,7 @@ def draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg,
                     river_length = CELL - 20  # Fits inside larger white circle
                     river_rect = pygame.Rect(cx - river_width//2, cy - river_length//2, river_width, river_length)
                     pygame.draw.rect(screen, river_color, river_rect, border_radius=1)
-
+                    
                     # Subtle flow direction indicators
                     arrow_size = 2
                     for i in range(2):
@@ -677,40 +680,40 @@ def draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg,
     pygame.draw.rect(screen, (0,0,0,150), msg_bg_rect, border_radius=5)
     msg_surf = BIGFONT.render(msg, True, (255, 255, 255))  # White text
     screen.blit(msg_surf, (20, rows*CELL + MARGIN + 18))
-
+    
     # Improved timer display
     timer_bg = pygame.Rect(10, 5, 250, 70)
     pygame.draw.rect(screen, (0,0,0,150), timer_bg, border_radius=5)
-
+    
     t1 = FONT.render(f"Circle: {format_time(timers['circle'])}", True, CIRCLE_COLOR)
     t2 = FONT.render(f"Square: {format_time(timers['square'])}", True, SQUARE_COLOR)
     turn_color = CIRCLE_COLOR if current == "circle" else SQUARE_COLOR
     turn = BIGFONT.render(f"Turn: {current.title()}", True, turn_color)
-
+    
     screen.blit(t1, (20, 15))
     screen.blit(t2, (20, 35))
     screen.blit(turn, (20, 55))
-
+    
     # Add game instructions in corner
     instructions = [
         "Controls:",
         "M - Move mode",
-        "P - Push mode",
+        "P - Push mode", 
         "F - Flip (stone ↔ river)",
         "R - Rotate river",
         "ESC - Cancel",
         "S - Save game"
     ]
-
+    
     inst_bg = pygame.Rect(screen.get_width()-180, 5, 170, len(instructions)*20 + 10)
     pygame.draw.rect(screen, (0,0,0,120), inst_bg, border_radius=5)
-
+    
     for i, instruction in enumerate(instructions):
         color = (255, 255, 255)  # White text for all instructions
         font = BIGFONT if i == 0 else FONT
         inst_surf = font.render(instruction, True, color)
         screen.blit(inst_surf, (screen.get_width()-175, 15 + i*20))
-
+    
     pygame.display.flip()
 
 def format_time(sec:float) -> str:
@@ -718,216 +721,161 @@ def format_time(sec:float) -> str:
     m = int(sec//60); s = int(sec%60)
     return f"{m:02d}:{s:02d}"
 
-
-def run_gui(mode: str, circle_strategy: str, square_strategy: str, load_file: Optional[str],
-            rows: int, cols: int, time_per_player: float, weights : Dict[str, float]) -> Dict[str, Any]:
-    """
-    Run a single game with GUI and return results.
-    Modified to be callable multiple times from external loop.
-    """
+def run_gui(mode:str, circle_strategy:str, square_strategy:str, load_file:Optional[str],
+            rows:int, cols:int, time_per_player:float):
     if not pygame:
         print("pygame not available; use --nogui")
-        return {"error": "pygame not available"}
-
+        return
     score_cols = score_cols_for(cols)
     board = default_start_board(rows, cols)
+    turn=0
 
-    # Initialize pygame if not already done
-    if not pygame.get_init():
-        pygame.init()
-        global FONT, BIGFONT
-        FONT = pygame.font.SysFont("arial", 14)
-        BIGFONT = pygame.font.SysFont("arial", 18)
-
-    window_width = max(800, cols * CELL + MARGIN * 2 + 200)
-    window_height = max(600, rows * CELL + MARGIN * 2 + 100)
+    window_width = max(800, cols*CELL + MARGIN*2 + 200)
+    window_height = max(600, rows*CELL + MARGIN*2 + 100)
     screen = pygame.display.set_mode((window_width, window_height))
-    pygame.display.set_caption(f"Game - {mode.upper()} Mode")
+    pygame.display.set_caption(f"🎮 River and Stones - {mode.upper()} Mode")  # ADDED: set window caption
 
     clock = pygame.time.Clock()
-
-    # Setup players and agents
-    players = {"circle": "human", "square": "human"}
-    if mode == "aivai":
-        players = {"circle": "ai", "square": "ai"}
-    elif mode == "hvh":
-        players = {"circle": "human", "square": "human"}
+    players = {"circle":"human","square":"human"}
+    # if mode == "hvai": players["square"]="ai"
+    # elif mode == "aivai": players = {"circle":"ai","square":"ai"}
+    if mode=="aivai": players={"circle":"ai","square":"ai"}
+    elif mode=="hvh": players={"circle":"human","square":"human"}
     else:
-        if circle_strategy == "random":
-            players = {"circle": "ai", "square": "human"}
-        else:
-            players = {"circle": "human", "square": "ai"}
-
+        if circle_strategy=="random": players={"circle":"ai","square":"human"}
+        else: players={"circle":"human","square":"ai"}
+    
+    # instantiate agents (they only receive board)
     agent_circle = get_agent("circle", circle_strategy)
     agent_square = get_agent("square", square_strategy)
     agents = {}
-    if players["circle"] == "ai": agents["circle"] = agent_circle
-    if players["square"] == "ai": agents["square"] = agent_square
+    if players["circle"]=="ai": agents["circle"] = agent_circle
+    if players["square"]=="ai": agents["square"] = agent_square
 
     timers = {"circle": time_per_player, "square": time_per_player}
+
     current = "circle"
     selected = None
     highlights = set()
-    msg = "Game started!"
+    msg = "Select a piece and choose an action (M/P/F/R). Welcome to River and Stones!"
     action_mode = None
     winner = None
     game_scores = None
     push_stage = None
     push_candidate = None
     game_over = False
-    turn = 0
-    max_turns = 1000
 
     turn_start = time.time()
-    game_start_time = time.time()
 
-    # Main game loop
-    while not game_over and turn < max_turns:
+    while True:
         clock.tick(FPS)
 
         # Check timeouts
-        if timers["circle"] <= 0 and timers["square"] > 0:
-            winner = "square"
-            game_over = True
-            msg = "Circle timed out."
-        elif timers["square"] <= 0 and timers["circle"] > 0:
-            winner = "circle"
-            game_over = True
-            msg = "Square timed out."
-        elif timers["circle"] <= 0 and timers["square"] <= 0:
-            winner = None
-            game_over = True
-            msg = "Both players timed out. Draw."
+        if not game_over:
+            if timers["circle"] <= 0 and timers["square"] > 0:
+                winner = "square"; game_over = True
+                print("Circle timed out.")
+            elif timers["square"] <= 0 and timers["circle"] > 0:
+                winner = "circle"; game_over = True
+                print("Square timed out.")
+            elif timers["circle"] <= 0 and timers["square"] <= 0:
+                winner = None; game_over = True
+                print("Both players timed out. Draw.")
 
-        # AI turn
-        if players[current] == "ai" and not game_over:
+        # if not winner:
+        #     timers[current] -= (now - last); last = now
+        #     if timers[current] <= 0:
+        #         winner = opponent(current); msg = f"{current.title()} timed out. {winner.title()} wins!"
+
+        # AI turn (single call)
+        if players[current] == "ai" and not winner and not game_over:
             ai_start = time.time()
             agent = agents[current]
-            move = agent.choose(board, rows, cols, score_cols, timers[current], timers[opponent(current)], weights)
+            move = agent.choose(board, rows, cols, score_cols, timers[current], timers[opponent(current)])
             ai_end = time.time()
             ai_elapsed = ai_end - ai_start
             timers[current] -= ai_elapsed
-
             if timers[current] <= 0:
-                winner = opponent(current)
-                msg = f"{current.title()} timed out. {winner.title()} wins!"
-                game_over = True
+                winner = opponent(current); msg = f"{current.title()} timed out. {winner.title()} wins!"; game_over = True
             else:
                 if move:
                     ok, info = validate_and_apply_move(board, move, current, rows, cols, score_cols)
                     msg = f"AI {current}: {info}"
                     if ok:
                         w = check_win(board, rows, cols, score_cols)
-                        if w:
-                            winner = w
-                            msg = f"{w.title()} wins!"
-                            game_over = True
+                        if w: winner = w; msg = f"{w.title()} wins!"; game_over = True
                         current = opponent(current)
-                        selected = None
-                        highlights = set()
-                        action_mode = None
-                        push_stage = None
-                        push_candidate = None
-                        turn_start = time.time()
+                        selected=None; highlights=set(); action_mode=None; push_stage=None; push_candidate=None
+                        turn_start = time.time()  # NEW: reset timer when switching to next (human) turn
                     else:
                         current = opponent(current)
                         turn_start = time.time()
                 else:
                     current = opponent(current)
                     turn_start = time.time()
-
+            draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg, timers, current)
             turn += 1
+            if turn > 1000:
+                print("Turn limit reached -> draw"); break
+            continue
 
-        # Handle events (for human players and window management)
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                pygame.quit()
-                return {"winner": winner, "scores": game_scores, "turns": turn, "quit": True}
-
-            if game_over:
+                pygame.quit(); return
+            if game_over:  # block further moves
                 continue
 
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_s:
-                    save_board_to_file(board, "saved_board.json")
-                    msg = "Saved board"
+                    save_board_to_file(board, "saved_board.json"); msg = "Saved board"
                 if ev.key == pygame.K_ESCAPE:
-                    selected = None
-                    highlights = set()
-                    action_mode = None
-                    push_stage = None
-                    push_candidate = None
-                    msg = "Cleared"
+                    selected=None; highlights=set(); action_mode=None; push_stage=None; push_candidate=None; msg="Cleared"
                 if selected and ev.key == pygame.K_m:
                     action_mode = "move"
                     info = compute_valid_targets(board, selected[0], selected[1], current, rows, cols, score_cols)
                     highlights = set(info['moves'])
                     msg = "Move mode: click a highlighted dest"
                 if selected and ev.key == pygame.K_p:
-                    action_mode = "push"
-                    push_stage = 0
-                    push_candidate = None
+                    action_mode="push"; push_stage=0; push_candidate=None
                     info = compute_valid_targets(board, selected[0], selected[1], current, rows, cols, score_cols)
-                    own_finals = set([of for of, pf in info['pushes']])
-                    highlights = set(own_finals)
-                    msg = "Push mode: click own_final"
+                    own_finals = set([of for of,pf in info['pushes']])
+                    highlights = set(own_finals); msg = "Push mode: click own_final"
                 if selected and ev.key == pygame.K_f:
-                    action_mode = "flip"
-                    msg = "Flip: press H/V for stone->river or F to flip river->stone"
+                    action_mode="flip"; msg = "Flip: press H/V for stone->river or F to flip river->stone"
                 if selected and ev.key == pygame.K_r:
-                    sx, sy = selected
-                    p = board[sy][sx]
-                    if p and p.owner == current and p.side == "river":
-                        m = {"action": "rotate", "from": [sx, sy]}
-                        ok, info = validate_and_apply_move(board, m, current, rows, cols, score_cols)
+                    sx,sy = selected; p = board[sy][sx]
+                    if p and p.owner==current and p.side=="river":
+                        m = {"action":"rotate","from":[sx,sy]}
+                        ok,info = validate_and_apply_move(board,m,current,rows,cols,score_cols)
                         msg = info
                         if ok:
                             w = check_win(board, rows, cols, score_cols)
-                            if w:
-                                winner = w
-                                msg = f"{w.title()} wins!"
-                                game_over = True
-                            current = opponent(current)
-                            selected = None
-                            highlights = set()
-                            action_mode = None
+                            if w: winner=w; msg = f"{w.title()} wins!"; game_over = True
+                            current = opponent(current); selected=None; highlights=set(); action_mode=None
                     else:
                         msg = "Rotate needs selected river piece"
-
-                if action_mode == "flip" and selected:
-                    sx, sy = selected
+                if action_mode=="flip" and selected:
+                    sx,sy = selected
                     if ev.key == pygame.K_h or ev.key == pygame.K_v:
-                        ori = "horizontal" if ev.key == pygame.K_h else "vertical"
-                        m = {"action": "flip", "from": [sx, sy], "orientation": ori}
-                        ok, info = validate_and_apply_move(board, m, current, rows, cols, score_cols)
+                        ori = "horizontal" if ev.key==pygame.K_h else "vertical"
+                        m={"action":"flip","from":[sx,sy],"orientation":ori}
+                        ok,info = validate_and_apply_move(board,m,current,rows,cols,score_cols)
                         msg = info
                         if ok:
                             w = check_win(board, rows, cols, score_cols)
-                            if w:
-                                winner = w
-                                msg = f"{w.title()} wins!"
-                                game_over = True
-                            current = opponent(current)
-                            selected = None
-                            highlights = set()
-                            action_mode = None
+                            if w: winner=w; msg = f"{w.title()} wins!"; game_over = True
+                            current = opponent(current); selected=None; highlights=set(); action_mode=None
                     elif ev.key == pygame.K_f:
-                        m = {"action": "flip", "from": [sx, sy]}
-                        ok, info = validate_and_apply_move(board, m, current, rows, cols, score_cols)
+                        m={"action":"flip","from":[sx,sy]}
+                        ok,info = validate_and_apply_move(board,m,current,rows,cols,score_cols)
                         msg = info
                         if ok:
                             w = check_win(board, rows, cols, score_cols)
-                            if w:
-                                winner = w
-                                msg = f"{w.title()} wins!"
-                                game_over = True
-                            current = opponent(current)
-                            selected = None
-                            highlights = set()
-                            action_mode = None
+                            if w: winner=w; msg = f"{w.title()} wins!"; game_over = True
+                            current = opponent(current); selected=None; highlights=set(); action_mode=None
 
-            # Mouse handling for human players
-            if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1 and players[current] == "human":
+            if ev.type == pygame.MOUSEBUTTONDOWN and ev.button==1:
+                # measure elapsed thinking time before move
                 elapsed = time.time() - turn_start
                 timers[current] -= elapsed
                 if timers[current] <= 0:
@@ -937,60 +885,130 @@ def run_gui(mode: str, circle_strategy: str, square_strategy: str, load_file: Op
                     continue
                 turn_start = time.time()
 
-                mx, my = ev.pos
-                rx = round((mx - MARGIN) / CELL)
-                ry = round((my - MARGIN) / CELL)
-                if not in_bounds(rx, ry, rows, cols):
-                    continue
+                mx,my = ev.pos
+                rx = round((mx - MARGIN)/CELL); ry = round((my - MARGIN)/CELL)
+                if not in_bounds(rx,ry,rows,cols): continue
 
                 if selected is None:
                     p = board[ry][rx]
-                    if p and p.owner == current:
-                        selected = (rx, ry)
-                        highlights = set()
-                        action_mode = None
-                        push_stage = None
-                        push_candidate = None
-                        msg = f"Selected {selected}"
+                    if p and p.owner==current:
+                        selected=(rx,ry); highlights=set(); action_mode=None
+                        push_stage=None; push_candidate=None
+                        msg=f"Selected {selected}"
                     else:
                         msg = "Select one of your pieces"
-                else:
-                    # Handle moves based on action_mode (similar to original code)
-                    # ... (keeping the original mouse click logic for brevity)
-                    pass
 
-        # Draw the board
+                else:
+                    sx,sy = selected
+                    if action_mode=="move":
+                        info = compute_valid_targets(board,sx,sy,current,rows,cols,score_cols)
+                        if (rx,ry) not in info['moves']:
+                            msg = "Invalid target"
+                        else:
+                            if board[ry][rx] is None:
+                                m={"action":"move","from":[sx,sy],"to":[rx,ry]}
+                            else:
+                                dx,dy = rx-sx, ry-sy
+                                m={"action":"move","from":[sx,sy],"to":[rx,ry],"pushed_to":[rx+dx,ry+dy]}
+                            ok,info = validate_and_apply_move(board,m,current,rows,cols,score_cols)
+                            msg = info
+                            if ok:
+                                w = check_win(board,rows,cols,score_cols)
+                                if w: winner=w; msg=f"{w.title()} wins!"; game_over=True
+                                current = opponent(current)
+                                selected=None; highlights=set(); action_mode=None
+                                push_stage=None; push_candidate=None
+                                turn_start = time.time()  # NEW: reset for next turn
+
+                    elif action_mode=="push":
+                        info = compute_valid_targets(board,sx,sy,current,rows,cols,score_cols)
+                        push_pairs = info['pushes']
+                        own_finals = set([of for of,pf in push_pairs])
+                        if push_stage==0 or push_stage is None:
+                            if (rx,ry) not in own_finals:
+                                msg = "Click a valid own_final"
+                            else:
+                                push_candidate=(rx,ry)
+                                pushed_options=[pf for of,pf in push_pairs if of==push_candidate]
+                                highlights=set(pushed_options); push_stage=1
+                                msg=f"Selected own_final {push_candidate}. Click pushed_to"
+                        else:
+                            if push_candidate is None:
+                                msg = "Push error; reselect"
+                                push_stage=None; push_candidate=None; highlights=set(); action_mode=None
+                            else:
+                                candidate_pair=(push_candidate,(rx,ry))
+                                if candidate_pair not in push_pairs:
+                                    msg="Invalid pushed_to"
+                                else:
+                                    m={"action":"push","from":[sx,sy],
+                                       "to":[push_candidate[0],push_candidate[1]],
+                                       "pushed_to":[rx,ry]}
+                                    ok,info = validate_and_apply_move(board,m,current,rows,cols,score_cols)
+                                    msg=info
+                                    push_stage=None; push_candidate=None; highlights=set(); action_mode=None
+                                    if ok:
+                                        w = check_win(board,rows,cols,score_cols)
+                                        if w: winner=w; msg=f"{w.title()} wins!"; game_over=True
+                                        current = opponent(current)
+                                        selected=None
+                                        turn_start = time.time()  # NEW
+
+                    elif action_mode=="flip":
+                        p = board[sy][sx]
+                        if p.side=="river":
+                            m={"action":"flip","from":[sx,sy]}
+                            ok,info = validate_and_apply_move(board,m,current,rows,cols,score_cols)
+                            msg=info
+                            if ok:
+                                w = check_win(board,rows,cols,score_cols)
+                                if w: winner=w; msg=f"{w.title()} wins!"; game_over=True
+                                current = opponent(current)
+                                selected=None; action_mode=None
+                                turn_start = time.time()  # NEW
+                        else:
+                            msg = "Press H/V for stone->river in flip mode"
+
+                    else:
+                        info = compute_valid_targets(board,sx,sy,current,rows,cols,score_cols)
+                        if (rx,ry) in info['moves']:
+                            if board[ry][rx] is None:
+                                m={"action":"move","from":[sx,sy],"to":[rx,ry]}
+                            else:
+                                dx,dy = rx-sx, ry-sy
+                                m={"action":"move","from":[sx,sy],"to":[rx,ry],"pushed_to":[rx+dx,ry+dy]}
+                            ok,info = validate_and_apply_move(board,m,current,rows,cols,score_cols)
+                            msg=info
+                            if ok:
+                                w = check_win(board,rows,cols,score_cols)
+                                if w: winner=w; msg=f"{w.title()} wins!"; game_over=True
+                                current = opponent(current)
+                                selected=None; highlights=set(); action_mode=None
+                                turn_start = time.time()  # NEW
+                        else:
+                            newp = board[ry][rx]
+                            if newp and newp.owner==current:
+                                selected=(rx,ry); highlights=set(); action_mode=None
+                                msg=f"Selected {selected}"
+                            else:
+                                msg="Invalid click"
+        # turn += 1
+        # print(turn)
+        # if turn > 1000:
+        #     print("Turn limit reached -> draw"); break
+
+        # --- DRAW ---
         draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg, timers, current)
 
-        # Compute final scores when game ends
         if game_over and game_scores is None:
             game_scores = compute_final_scores(
                 board, winner, rows, cols, score_cols,
                 remaining_times={'circle': timers['circle'], 'square': timers['square']}
             )
-            if winner in ("circle", "square"):
+            if winner in ("circle","square"):
                 msg = f"{winner.title()} wins! Scores — Circle: {game_scores['circle']:.1f}, Square: {game_scores['square']:.1f}"
             else:
                 msg = f"Draw. Scores — Circle: {game_scores['circle']:.1f}, Square: {game_scores['square']:.1f}"
-
-            # Auto-close after showing results for 2 seconds in AI vs AI mode
-            if mode == "aivai":
-                draw_board(screen, board, rows, cols, score_cols, selected, highlights, msg, timers, current)
-                pygame.time.wait(2000)  # Show result for 2 seconds
-                break
-
-    game_end_time = time.time()
-    total_game_time = game_end_time - game_start_time
-
-    # Return results
-    return {
-        "winner": winner,
-        "scores": game_scores,
-        "turns": turn,
-        "game_time": total_game_time,
-        "final_board": board,
-        "quit": False
-    }
 
 
 # ---------------- CLI interactive runner ----------------
@@ -1005,25 +1023,25 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
     else:
         if circle_strategy=="random": players={"circle":"ai","square":"human"}
         else: players={"circle":"human","square":"ai"}
-
+    
     current="circle"; winner=None; turn=0
 
     print("🎮 Welcome to River and Stones! 🎮")
     print(f"Mode: {mode.upper()}")
     print(f"Circle: {circle_strategy}, Square: {square_strategy}")
-
+    
     # Timers (seconds) - ADDED
     timers = {"circle": time_per_player, "square": time_per_player}  # ADDED
 
     while True:
         print(board_to_ascii(board, rows, cols, score_cols))
-
+        
         w = check_win(board, rows, cols, score_cols)
         if w:
             winner = w
             print(f"\n🎉 WINNER: {w.upper()} 🎉")
             break
-
+            
         # immediate timeout check
         if timers["circle"] <= 0 and timers["square"] > 0:
             winner = "square"; print("\nCircle timed out."); break
@@ -1038,7 +1056,7 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
         print(f"Turn {turn + 1}: {current.upper()}'s move")
         print(f"Remaining time — Circle: {format_time(timers['circle'])} | Square: {format_time(timers['square'])}")
         print(f"{'='*30}")
-
+        
         if players[current]=="ai":
             print(f"🤖 AI {current} is thinking...")
             agent = agent_circle if current=="circle" else agent_square
@@ -1058,7 +1076,7 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
                 print(f"AI {current} has no moves; pass")
                 current = opponent(current)
                 turn += 1
-                if turn > 2000:
+                if turn > 1000:
                     print("Turn limit reached -> draw"); break
                 # do not count the "press enter to continue" as clock time; skip it
                 input("\nPress Enter to continue...")  # keep for readability
@@ -1069,7 +1087,7 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
             if not ok:
                 current = opponent(current)
                 turn += 1
-                if turn > 2000:
+                if turn > 1000:
                     print("Turn limit reached -> draw"); break
                 input("\nPress Enter to continue...")
                 continue
@@ -1102,14 +1120,14 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
             try:
                 move = json.loads(s)
             except Exception as e:
-                print(f"Bad JSON: {e}");
+                print(f"Bad JSON: {e}"); 
                 # do not change player on bad input, let them try again
                 continue
             ok,msg = validate_and_apply_move(board, move, current, rows, cols, score_cols)
             print(f"Result: {msg}")
             if not ok:
                 continue
-
+            
         # after a successful move / AI move attempt, check board win
         w = check_win(board, rows, cols, score_cols)
         if w:
@@ -1120,7 +1138,7 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
         # next player's turn
         current = opponent(current)
         turn += 1
-        if turn > 2000:
+        if turn > 1000:
             print("Turn limit reached -> draw"); break
 
         # Press Enter pause for readability — DO NOT count this time as player's clock (unchanged behavior)
@@ -1128,7 +1146,7 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
             _ = input("\nPress Enter to continue...")
         except KeyboardInterrupt:
             pass
-
+        
     # compute and print final scores with remaining times accounted for (CHANGED: pass timers)
     final_scores = compute_final_scores(board, winner, rows, cols, score_cols,
                                         remaining_times={'circle': timers['circle'], 'square': timers['square']})
@@ -1139,84 +1157,23 @@ def run_cli(mode:str, circle_strategy:str, square_strategy:str, load_file:Option
     print(f"Final Scores -> Circle: {final_scores['circle']:.1f} | Square: {final_scores['square']:.1f}\n")
 
 # ---------------- Entrypoint ----------------
-def update_weights(game_result, WEIGHTS, learning_rate=0.01):
-    winner = game_result["winner"]
-    if winner not in ("circle", "square"):
-        return  # no update on draw
-
-    final_board = game_result["final_board"]
-    rows, cols = len(final_board), len(final_board[0])
-    score_cols = score_cols_for(cols)
-
-    # Compute features for both players
-    player = winner
-    opp = opponent(player)
-
-    from student_agent import extract_features
-    # winner’s features
-    f_winner = extract_features(final_board, player, rows, cols, score_cols)
-    # loser’s features
-    f_loser = extract_features(final_board, opp, rows, cols, score_cols)
-
-    # Update: move weights toward emphasizing winner’s features
-    for i, f in enumerate(["W1","W2","W3","W4","W5"]):
-        feature_name = "F"+ str(i + 1)
-        delta = (f_winner[feature_name] - f_loser[feature_name])
-        print(delta)
-        WEIGHTS[f] += learning_rate * delta
-
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["hvh", "hvai", "aivai"], default="hvai")
-    ap.add_argument("--circle", choices=["random", "student", "student_cpp"], default="random")
-    ap.add_argument("--square", choices=["random", "student", "student_cpp"], default="random")
+    ap.add_argument("--mode", choices=["hvh","hvai","aivai"], default="hvai")
+    ap.add_argument("--circle", choices=["random","student","student_cpp"], default="random")
+    ap.add_argument("--square", choices=["random","student","student_cpp"], default="random")
     ap.add_argument("--load", default=None)
     ap.add_argument("--nogui", action="store_true")
     ap.add_argument("--time", type=float, default=1.0, help="Time per player in minutes (default: 1.0)")
-    ap.add_argument("--games", type=int, default=1, help="Number of games to run (default: 1)")
     args = ap.parse_args()
 
-    rows = DEFAULT_ROWS
-    cols = DEFAULT_COLS
+    rows = DEFAULT_ROWS; cols = DEFAULT_COLS
     time_per_player = args.time * 60  # Convert minutes to seconds
 
     if args.nogui:
         run_cli(args.mode, args.circle, args.square, args.load, rows, cols, time_per_player)
     else:
-        # Run multiple games if specified
-        weights = {
-            "W1": 8,
-            "W2": 2,
-            "W3": 3,
-            "W4": 1,
-            "W5": 1
-        }
-        results = []
-        for game_num in range(args.games):
-            print(f"\n--- Starting Game {game_num + 1}/{args.games} ---")
-            result = run_gui(args.mode, args.circle, args.square, args.load, rows, cols, time_per_player, weights)
+        run_gui(args.mode, args.circle, args.square, args.load, rows, cols, time_per_player)
 
-            if result.get("quit"):
-                print("User quit the game.")
-                break
-
-            results.append(result)
-            print(f"Game {game_num + 1} result: Winner={result['winner']}, Turns={result['turns']}")
-            update_weights(result, weights)
-            print("WEIGHTS UPDATED AS : ", weights)
-
-        # Print summary
-        if results:
-            print(f"\n--- Summary of {len(results)} games ---")
-            circle_wins = sum(1 for r in results if r['winner'] == 'circle')
-            square_wins = sum(1 for r in results if r['winner'] == 'square')
-            draws = sum(1 for r in results if r['winner'] is None)
-            print(f"Circle wins: {circle_wins}")
-            print(f"Square wins: {square_wins}")
-            print(f"Draws: {draws}")
-            avg_turns = sum(r['turns'] for r in results) / len(results)
-            print(f"Average turns per game: {avg_turns:.1f}")
-
-
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
